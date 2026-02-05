@@ -1,4 +1,4 @@
-# 接入hyperlanehi实现跨链
+# 接入hyperlane实现跨链
 
 ---
 
@@ -334,4 +334,5 @@ async function crossChainTransfer(signer, amount, recipientAddress) {
 Relayer     自动监听并中继（在 BSC 链上支付 gas）
 用户体验    用户只需等待几秒到几分钟，USDT 就会到达 BSC
 ```
+
 
