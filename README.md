@@ -1,4 +1,4 @@
-# Hyperlane 接入实现跨链
+# 接入hyperlanehi实现跨链
 
 ---
 
@@ -235,4 +235,103 @@ const tx = await warpRouteContract.transferRemote(
 );
 ```
 
+
+---
+
+### 前端操作步骤
+
+#### 1. 用户授权 USDT 给 Warp Route 合约
+
+```javascript
+// 前端代码（ethers.js 示例）
+const USDT_ADDRESS = '0x...';  // Bee 链上的 USDT 地址
+const WARP_ROUTE = '0xdce906c2195c3c25b1bc42dbe1df2ade45791b49';  // Bee 链上的 Warp Route
+
+// ERC20 approve
+const usdtContract = new ethers.Contract(USDT_ADDRESS, ['function approve(address,uint256)'], signer);
+await usdtContract.approve(WARP_ROUTE, amount);
+```
+
+---
+
+#### 2. 调用 Warp Route 的 transferRemote
+
+```javascript
+const WARP_ROUTE_ABI = [
+  'function transferRemote(uint32 destination, bytes32 recipient, uint256 amount) external payable returns (bytes32)'
+];
+
+const warpRoute = new ethers.Contract(WARP_ROUTE, WARP_ROUTE_ABI, signer);
+
+// 目标链 chainId（BSC = 56）
+const destinationChain = 56;
+
+// 收款人地址（转换为 bytes32 格式）
+const recipientAddress = ethers.zeroPadValue(userAddress, 32);
+
+// 转账金额
+const amount = ethers.parseUnits('100', 18);  // 100 USDT
+
+// 执行跨链转账
+const tx = await warpRoute.transferRemote(destinationChain, recipientAddress, amount);
+await tx.wait();
+console.log('跨链消息已发送，等待中继...');
+```
+
+---
+
+### 后端 Relayer 服务
+
+您需要持续运行 
+
+auto-relayer-final.js
+
+来自动中继消息：
+
+```bash
+# 在服务器上持续运行（可用 pm2 或 systemd 管理）
+export HYP_KEY=relayer的私钥
+pm2 start auto-relayer-final.js --name hyperlane-relayer
+```
+
+---
+
+### 完整前端示例
+
+```javascript
+async function crossChainTransfer(signer, amount, recipientAddress) {
+  const BEE_USDT = '0x...';  // Bee 链 USDT 地址
+  const WARP_ROUTE = '0xdce906c2195c3c25b1bc42dbe1df2ade45791b49';
+  const BSC_CHAIN_ID = 56;
+
+  // 1. 授权
+  const usdt = new ethers.Contract(BEE_USDT, ['function approve(address,uint256)'], signer);
+  const approveTx = await usdt.approve(WARP_ROUTE, amount);
+  await approveTx.wait();
+
+  // 2. 跨链转账
+  const warpRoute = new ethers.Contract(WARP_ROUTE, [
+    'function transferRemote(uint32,bytes32,uint256) payable returns (bytes32)'
+  ], signer);
+
+  const recipient = ethers.zeroPadValue(recipientAddress, 32);
+  const transferTx = await warpRoute.transferRemote(BSC_CHAIN_ID, recipient, amount);
+  const receipt = await transferTx.wait();
+
+  // 从日志中获取 message ID（可选，用于追踪）
+  console.log('交易成功，消息将被自动中继到 BSC');
+  return receipt.hash;
+}
+```
+
+---
+
+### 关键点
+
+```text
+项目        说明
+用户操作    授权 + transferRemote（在 Bee 链上支付 gas）
+Relayer     自动监听并中继（在 BSC 链上支付 gas）
+用户体验    用户只需等待几秒到几分钟，USDT 就会到达 BSC
+```
 
